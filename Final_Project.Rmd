@@ -1,0 +1,571 @@
+---
+title: "The Relationship between COVID-19 Incident Rate and Weather in OECD Countries."
+author: "Eun Lim - 1005280839"
+date: April 26, 2021
+output:
+  pdf_document: default
+---
+
+```{r, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library(openintro)
+```
+
+
+
+# Abstract
+
+  The COVID-19 pandemic has caused numbers of death and incurred huge social costs. The COVID-19 belongs to the coronavirus subfamily and therefore shares similar symptoms to the common cold and flu which are also in the coronavirus subfamily. Since the common cold and flu are much more infectious in the winter, we suspect that the relationship between the infectivity of the COVID-19 and the weather. The infectivity is measured by the incident rate and the temperature is considered as a main factor as the weather. The weather effect on the incident rate is analyzed by fitting a linear model and it is found that the incident rate decreases as the temperature increases. 
+
+
+# Introduction
+
+  The world has been suffered from the COVID-19 pandemic since 2020. The World Health Organization (WHO) on March 11, 2020, declared the novel coronavirus (COVID-19) outbreak a global pandemic. By the end of March, most of the world became seriously affected by the disease. The virus that causes the COVID-19 is SARS-CoV-2 and it is one of the viruses in the coronavirus subfamily (Corman et al., 2018, p. 175). Such a group of viruses causes respiratory tract infections that can range from mild to lethal, and two of the most popular diseases that are caused by coronavirus are the common cold and flu (Similarities and Differences between Flu and COVID-19., 2021). It is well-known that the common cold infections and flu infections occur more frequently in the winter because the virus tends to get stronger and the human immune system tends to get weaker due to the low temperature. 
+  
+  Accordingly, in this paper, we examine the weather effect on the incident rate of COVID-19 over 37 OECD membership countries under the hypothesis that the incident rate of COVID-19 is affected by the temperature, and so there is a relationship between the incident rate and the weather. Consequently, the weather effect, in this paper, is defined by the effect of temperature. Especially, we define the temperature as the air temperature recorded by weather stations on land and sea as well as some satellite. Furthermore, we define the incident rate of COVID-19 as a ratio of the number of confirmed cases to the population that is converted into the percentage scale.  
+  
+  The weather effect on the incident rate of COVID-19 over 37 OECD membership countries is important and meaningful to analyze for three major reasons. Firstly, among various factors that affect the incident rate, the weather is almost the only natural factor that one has no control over. However, at the same time, the weather, namely temperature, exhibits substantial spatial and interannual variability. Thus, when all the other factors are excluded from analysis or assumed to be held constant, the weather effect determines the infectivity of the COVID-19 and behaves as a baseline indicator that does not depend on social, economic, and political factors. The second reason highlights the context of why the incident rate of COVID-19 is used as some type of indicator in this paper. The COVID-10 pandemic is risky and considered the worst among all other pandemics in history, such as H1N1 Swine Flu and Zika Virus, because of the infectivity and the fatality. The fatality, however, is somewhat under control if a government has a certain level of the public health care system and the ability to cope with risks. For example, as long as a country's government can give appropriate treatments to a patient, it is not as lethal unless one has had an underlying disease or one is old. Nevertheless, the infection itself is harder to control even with some preventive measures. Consequently, to examine the characteristics of the virus, analyzing the incident rates is more appropriate than analyzing any other indicator. Lastly, although the COVID-19 is a global shock, as previously explained, governments may have different level of the public health care system and perhaps have implemented different preventive measures. The membership countries in OECD meet a certain social, economic and political standards, i.e., not too poor, underdeveloped or in a war, but still captures some variability. What this means is that the gap between the countries in OECD is not like the gap between the wealthiest country and the poorest country in the world, but the gap is like the gap between a country in G7 and a country in G20. Therefore, the weather effect can be more accurately analyzed and remove some unobserved bias and confounding variables. 
+
+# Data
+
+  To conduct the analysis, we gathered 3 different datasets, COVID-19 cases per country, average monthly temperatures per country, and demographics per country. The COVID data is from the COVID-19 Data Repository by the Center for Systems Science and Engineering (CSSE) at Johns Hopkins University (COVID-19 Portal, 2021). Also, the average monthly temperature data is from the World Bank Climate Change Knowledge Portal (World Bank Climate Change Knowledge Portal, n.d.), and the global demographic data is from the OECD Statistics (Demography - Population - OECD Data, n.d.). 
+
+  The original COVID-19 data contains information including but not limited to the number of cumulative confirmed cases and deaths on a daily basis, and geographical information from the day that the virus is first identified up to April 25th, 2021. 
+
+  The demographics data contains the population of each of the 37 OECD countries and used to compute the incident rate of the COVID-19 per country. This data is based on the report in 2018.
+
+  The weather data contains the average monthly temperatures of each country from 1991 to 2016. It would be much preferred if there were data of average monthly temperatures from April 2020 to March 2021 for each of the countries, but it was impossible to find that from a credible source, and so our weather data is chosen instead.
+
+
+```{r, include = FALSE}
+
+library(tidyverse)
+library(stringr)
+library(anytime)
+library(patchwork)
+library(lmtest)
+select <- dplyr::select
+
+oecd <- c("AUSTRALIA", 'AUSTRIA', 'BELGIUM', "CANADA", "CHILE", "COLOMBIA", "CZECHIA", 'DENMARK',  'ESTONIA',  'FINLAND',  "FRANCE", 'GERMANY',  'GREECE',  'HUNGARY', "ICELAND", "IRELAND",  'ISRAEL', 'ITALY',  'JAPAN', 'KOREA, SOUTH', 'LATVIA', 'LITHUANIA', 'LUXEMBOURG', 'MEXICO', 'NETHERLANDS', 'NEW ZEALAND',  'NORWAY',  'POLAND',  'PORTUGAL', 'SLOVAKIA', 'SLOVENIA', 'SPAIN', "SWEDEN", "SWITZERLAND",  'TURKEY',  'UNITED KINGDOM',  "US")
+
+pop <-read.csv("population.csv")
+
+pop <- pop %>% 
+  select(c(Country, Value)) %>%
+  rename(country = Country,
+         population = Value) %>%
+  arrange(country) %>%
+  mutate(country = oecd)
+
+rep12 <- function() {
+  rep_oecd <- c()
+  for (i in 1:length(oecd)){
+    rep_oecd <- c(rep_oecd, rep(oecd[i],12))
+  }
+  tibble(country = rep_oecd)
+}
+
+mon <- rep(c("2020-04-30","2020-08-31","2020-12-31","2021-02-28", "2021-01-31","2020-07-31","2020-06-30",
+             "2021-03-31","2020-05-31","2020-11-30","2020-10-31","2020-09-30"), length(oecd))
+
+temp <-read.csv("weather.csv")
+temp$Country = toupper(temp$Country)
+temp <- temp%>% 
+  rename(temperature = Temperature....Celsius.,
+                   year = Year,
+                   statistics = Statistics,
+                   country = Country) %>%
+  select(-c(ISO3)) %>%
+  mutate(temperature = as.numeric(temperature)) %>%
+  group_by(country, statistics) %>%
+  summarize(average = mean(temperature)) %>%
+  na.omit %>%
+  arrange(country) %>%
+  select(-statistics)
+
+temp$country <- rep12()$country
+temp <- cbind(temp, mon) 
+colnames(temp) = c("country", "average", "date")
+
+temp$date <- anydate(temp$date)
+
+mar20 <-read.csv("mar20.csv") %>% mutate(date = "2020-03-31")
+apr20 <-read.csv("apr20.csv") %>% mutate(date = "2020-04-30")
+may20 <-read.csv("may20.csv") %>% mutate(date = "2020-05-31")
+jun20 <-read.csv("jun20.csv")%>% mutate(date = "2020-06-30")
+jul20 <-read.csv("jul20.csv")%>% mutate(date = "2020-07-31")
+aug20 <-read.csv("aug20.csv")%>% mutate(date = "2020-08-31")
+sep20 <- read.csv("sep20.csv")%>% mutate(date = "2020-09-30")
+oct20 <- read.csv("oct20.csv")%>% mutate(date = "2020-10-31")
+nov20 <- read.csv("nov20.csv")%>% mutate(date = "2020-11-30")
+dec20 <- read.csv("dec20.csv")%>% mutate(date = "2020-12-31")
+jan21 <- read.csv("jan21.csv")%>% mutate(date = "2021-01-31")
+feb21 <- read.csv("feb21.csv")%>% mutate(date = "2021-02-28")
+mar21 <-read.csv("mar21.csv")%>% mutate(date = "2021-03-31")
+
+covid <- mar20 %>% 
+  full_join(apr20) %>%
+  full_join(may20) %>%
+  full_join(jun20) %>%
+  full_join(jul20) %>%
+  full_join(aug20) %>%
+  full_join(sep20) %>%
+  full_join(oct20) %>%
+  full_join(nov20) %>%
+  full_join(dec20) %>%
+  full_join(jan21) %>%
+  full_join(feb21) %>%
+  full_join(mar21) %>%
+  rename(country = Country_Region,
+         confirmed = Confirmed,
+         death = Deaths) %>%
+  select(c(country, confirmed, death, date)) %>%
+  group_by(country, date) %>%
+  summarize(confirmed = sum(confirmed), death = sum(death))
+
+covid$country <- toupper(covid$country)
+
+covid <- covid %>% filter(country == "AUSTRALIA"| country =='AUSTRIA'| country =='BELGIUM'| country =="CANADA"| country =="CHILE"| country =="COLOMBIA"| country =="CZECHIA"| country =='DENMARK'|country == 'ESTONIA'|country == 'FINLAND'|country == "FRANCE"| country =='GERMANY'|country == 'GREECE'|country == 'HUNGARY'| country =="ICELAND"| country =="IRELAND"|country == 'ISRAEL'| country =='ITALY'|country == 'JAPAN'| country =='KOREA, SOUTH'| country =='LATVIA'| country =='LITHUANIA'| country =='LUXEMBOURG'| country =='MEXICO'| country =='NETHERLANDS'| country =='NEW ZEALAND'|country == 'NORWAY'|country == 'POLAND'|country == 'PORTUGAL'| country =='SLOVAKIA'| country =='SLOVENIA'| country =='SPAIN'| country =="SWEDEN"| country =="SWITZERLAND"|country == 'TURKEY'|country == 'UNITED KINGDOM'|country == "US") %>% mutate(date = anydate(date)) %>%
+  group_by(country) %>%
+  mutate(monthly_confirmed = confirmed - lag(confirmed),
+         monthly_death = death - lag(death)) %>%
+  na.omit %>%
+  full_join(pop) %>%
+  mutate(incident_rate = round(confirmed*100/population, 4)) %>%
+  select(-c(population,confirmed,death, monthly_confirmed, monthly_death)) %>%
+  full_join(temp) %>%
+  rename(temperature = average) 
+
+```
+
+  Each dataset is cleaned, following the two main criteria; dropping unnecessary variables and converting the unit and time. 
+  
+  As a result, from the COVID-19 dataset, we dropped all other variables except the variables denoting the number of confirmed cases of the 37 OECD countries and date. Also, since the dataset is constructed on daily basis, we only took the data from the last day of each month from March 2020 to March 2021, then computed the difference between the number of confirmed cases of one month and the number of confirmed cases of the month right before. As a result, we obtained the number of confirmed cases reported every month from April 2020 to March 2021.
+  
+  Likewise, the original temperature data contains the average monthly temperatures from 1991 to 2016, i.e., $12\times 24$ monthly values. Therefore, we calculated the 24 years average of each month's temperature. 
+  
+  Additionally, the population from the demographics data is extracted and is used to divide the number of confirmed cases from the COVID-19 data to get the incident rate. For simplicity, the rates are scaled to percentage. 
+  
+  Then, we merged each dataset to create a big dataset that contains all the information needed for the paper. The merging process is done by merging the COVID-19 data with the weather datasets indexing by country names and months. 
+
+  The merged dataset, therefore, contains four variables, country, date, incident rate, and temperature. Among the variables, the most important ones are incident rates and average monthly temperatures. At this point, the countries and dates are unnecessary.
+
+
+```{r, include=FALSE}
+sy <- summary(covid$incident_rate)
+st<- summary(covid$temperature)
+```
+
+  The minimum, mean and maximum incident rates from April 2020 to March 2021 over 37 OECD countries are 0.01%, 1.95%, and 14.42%. Likewise, the minimum, mean and maximum temperature from the same period is $-23.01^{\circ}c$, $9.94^{\circ}c$.
+
+```{r, include =TRUE}
+temp_plot <- ggplot(data = covid, aes(x=c(temperature), y=incident_rate))+
+  geom_point(color = 'skyblue', size = 1) +
+  xlab("temperature (degrees celsius)")+
+  ylab("incident rate (%)")+
+  ggtitle("Fig 1. Incident Rate vs. Temperature")
+
+temp_his <- ggplot(data=covid, aes(x=temperature)) +
+  geom_histogram(fill="orange",colour="white") +
+  xlab("temperature (degrees celsius)") +
+  ggtitle("Fig 3. Temperature")
+
+rate_his <- ggplot(data=covid,aes(x=incident_rate)) +
+  geom_histogram(fill="light green", colour = "white") +
+  xlab("incident rate (%)") +
+  ggtitle("Fig 2. Incident Rate")
+
+temp_plot|rate_his|temp_his
+
+```
+
+
+ Figure 1. shows the relationship between the temperature and the incident rate. The scatter plot slightly shows some negative and linear relationships. But, at a relatively lower temperature, the points are more sparsely scattered while at a relatively higher temperature, the points are more concentrated. It can later be a problem if we were to fit a linear model, because the residuals can show some patterns, instead of randomly scattered. 
+  
+  Figure 2. illustrates the distribution of the monthly incident rate over 37 OECD countries. It is obvious that the data is not normally distributed with a right-skewed distribution. It almost looks like a typical log-normal distribution which is also a problem if we were to fit a linear model. 
+  
+  The last one, figure 3., shows the distribution of the average monthly temperature of the 37 OECD countries. It does not look like a typical bell shape of a normal distribution, because it is slightly left-skewed. The skewness is not as extreme as the skewness found in figure 2., but it is still hard to conclude that it is perfected normally distributed.
+
+All analysis for this report was programmed using `R version 4.0.4`.
+
+
+# Methods
+
+  We will find the weather effect on the incident rate by regression analysis method. The linear model has a slope coefficient which describes the linear relationship. The slop coefficient is estimated by the OLS and the MLE approach. Also, the significance of the slope coefficient is tested by the hypothesis test. To determine that the model does not violate the linear model assumptions, we will conduct the goodness of fit test. 
+
+## Linear Regression
+
+  Let $Y$ denote the monthly incident rate and let $X$ denote the average monthly temperature. Equivalently, we define the average monthly temperature as the independent variable and the incident rate as the dependent variable. 
+
+  Suppose that $Y_1, Y_2, …, Y_{444}$ are independent realizations of the random variable $Y$ that are observed at the values $x_1, x_2, …, x_444$ of a random variable $X$. Assume that the regression of $Y$ on $X$ is linear, so for $i = 1, 2, …, 444$ $Y_i =  E(Y|X=x) + \epsilon_i = \beta_0 + \beta_1x_i +\epsilon_i$, where $\epsilon_i$ is the random error in $Y_i$ and $E(e | X) = 0$.
+
+  The equation of the least-squares line of best fit is $y = \hat\beta_0 + \hat\beta_1x$, where $\hat\beta_0 \text{ and } \hat\beta_1$ are the slope and intercept estimator of the regression line. The slope coefficient in the model is significantly important and contains a piece of meaningful information. The slope coefficient defines the linear relationship between the dependent and independent variables. If the slope coefficient is negative, then it implies that there exists a negative relationship. If the slope coefficient is positive, it implies that there exists a positive relationship. If the slop coefficient is zero, then it implies there is no relationship. The intercept coefficient is rather unimportant, especially in this paper, because it denotes the incident rate when the temperature is at 0 degrees celsius. The temperature can be both negative and positive values, so the value of 0 does not imply a significant meaning.
+
+  It the following section of Goodness of Fit Test, we will first check if the regression assumptions are satisfied. If the assumptions are not satisfied, then the model can be redefined with some transformed data. 
+  
+## Goodness of Fit Test
+
+  We will conduct two goodness of fit tests. Firstly, we will conduct a Kolmogorov-Smirnov Test to check if the normality of random errors assumption is satisfied. After the KS test, we will conduct a Breusch-Pagan Test to check the constant variance assumption of random errors. 
+
+###  Kolmogorov-Smirnov Test \
+
+  The Kolmogorov-Smirnov test compares the empirical cumulative distribution function of residuals from our model with the cumulative distribution function of normal residuals. The test statistic takes the largest absolute difference between the two distribution functions across all $x$ values. In this paper, we will conclude the test result using the `ks.test` command from the `stats` library. The Kolmogorov-Smirnov test with the significance level of $\alpha=0.05$ will be conducted under the hypothesis, 
+
+
+\begin{align}
+H_0:&\text{ Errors follow a normal distribution.}\\
+H_1:&\text{ Errors do not follow a normal distribution.}  
+\end{align}
+  
+
+  If the p-value of the test result is less than 0.05, then we reject the null hypothesis and conclude that the residuals are not normally distributed and so the model assumption is violated. 
+
+### Breusch-Pagan Test \
+
+ The Breusch-Pagan test examines the non-constant variance of residuals by regressing the squared residual on the independent variable, x, which should not make sense if the assumption of the constant variance of residuals is satisfied. The Breusch-Pagan test with the significance level of $\alpha=0.05$ will be conducted under the hypothesis, 
+ 
+  
+\begin{align}
+H_0:&\text{ Variances are constant.}\\
+H_1:&\text{ Variances are not constant.}  
+\end{align}
+  
+by the `bptest` function from the `lmtest` package. If the p-value is computed to be less than 0.05, then we reject the null hypothesis and conclude that the residual variances are not constant, and so it violates the model assumption. 
+
+  Based on the results of the goodness of fit tests, we may transform the data and fit a new model.
+  
+## Maximum Likelihood Estimator
+
+   Consider a simple linear regression model, as defined in the Linear Regression section, in which the regression function is linear, i.e., $f(x)=\beta_0 + \beta_1x$, and the response variable $Y$ is defined as, $Y=f(X)+\epsilon=\beta_0 + \beta_1X+\epsilon$, where the random error $\epsilon$ is normally distributed with a zero mean and a variance, $\sigma^2$. Suppose that we are given a sequence $(X_1, Y_1), . . . ,(X_n, Y_n)$ that is described by the above model, $Y_i=f(X_i)+\epsilon_i$, where $\epsilon_i \stackrel {iid}\sim N(0, \sigma^2)$. We, thus, have three unknown parameters, $\beta_0, \beta_1, \sigma^2$  and we want to estimate them using the given sample. Also assume that $X_1,X_2, ..., X_n$ are fixed values, therefore the only randomness of the function is from the random errors, $\epsilon_i$. Then, we can say that $Y_i \sim N(f(X_i), \sigma^2)$ with a probability density function, 
+   
+   $$ f(y) = \frac{1}{\sqrt{2\pi\sigma^2}}e^{(\frac{-(y-f(X_i))^2}{2\sigma^2})}$$
+   
+   , and so we can state the likelihood function of the sequence $Y_1, ..., Y_n$ as, 
+   
+   $$f(Y_1, ..., Y_n) = (\frac{1}{\sqrt{2\pi\sigma^2}})^ne^{-\frac{1}{2\sigma^2}\sum_{i=1}^{n}(Y_i-\beta_0-\beta_1X_i)^2} $$
+
+  The maximum likelihood estimator (MLE) approach is used to estimate the slope of the regression line, $\beta_1$. The MLE of $\beta_1$ is $\frac{\sum_{i=1}^{n}(x_i-\bar x)(y_i-\bar y)}{\sum_{i=1}^{n}(x_i-\bar x)^2}$, which equals the OLS estimator of $\beta_1$, according to the book, A Modern Approach to Regression with R by Simon J. Sheather (Sheather, 2009). 
+  
+  All derivations regarding the MLE can be found in Section 1 of the Appendix.
+  
+## Confidence Interval
+
+  We will compute a 95% confidence interval for $\beta_1$, the slope of the regression line. The 95% confidence interval means that if thousands of samples of $n$ items are drawn from a population using simple random sampling and a confidence interval is calculated for each sample, the proportion of those intervals that will include the true population slope is 0.95. In general, the range of the confidence interval is defined by the $\text{sample statistic} \pm \text{margin of error}$. 
+
+  By the definition of the OLS estimator of slope coefficient of a simple linear regression, $\hat\beta_1$, $E[\hat\beta_1|X]=\beta_1$ and $Var[\hat\beta_1|X] = \frac{\sigma^2}{SXX}$, where $SXX = \sum^{n}_{i=1}(x_i-\bar{x})^2$. So, by the definition. $\hat\beta_1|X\sim N(\beta_1, \frac{\sigma^2}{SXX})$. If we standardize the conditional distribution of $\hat\beta_1$, we get $Z = \frac{\hat\beta_1-\beta_1}{\frac{\sigma}{\sqrt{SXX}}} \sim N(0,1)$. However, by the assumption, $\sigma^2$ is the unknown but constant variance of random errors, so, we cannot use it to test hypothesis and find confidence intervals for $\beta_1$. Since $\sigma$ is unknown, replacing $\sigma$ by S, the standard deviation of the residuals results in, 
+
+  
+\begin{align}
+T &= \frac{\hat\beta_1-\beta_1}{\frac{s}{\sqrt{SXX}}}\\
+&=\frac{\hat\beta_1-\beta_1}{se(\hat\beta_1)} \sim t_{n-2}
+\end{align}
+  
+
+  Note that the $n-2$ degree of freedom follows the formula $\text{sample size } – \text{ number of mean parameters estimated}$, and since we estimate two parameters, $\beta_0, \beta_1$, we have $n-2$ degree of freedom. So the sample statistic for the 95% confidence interval for $\beta_1$ is $\frac{\hat\beta_1-\beta_1}{se(\hat\beta_1)}$. Also, since the level of confidence is 95%, the alpha is 0.05. Thus, the margin of error is $\pm\space t_{n-2, 0.025}$.  
+  
+  Putting all together, the 95% confidence interval for $\beta_1$, the slope of the regression line is $\frac{\hat\beta_1-\beta_1}{se(\hat\beta_1)} \pm\space t_{n-2, 0.025}$. Equivalently $\beta_1 \in (\hat\beta_1-t_{n-2,0.025}\times se(\hat\beta_1), \space \hat\beta_1+t_{n-2,0.025}\times se(\hat\beta_1))$.
+  
+
+All derivations regarding the distribution of $\hat\beta_1$ can be found in Section 2 of the Appendix.
+
+
+## Hypothesis Test
+
+  We will conduct a two-tailed hypothesis test about the mean of $\hat\beta_1$ under the hypothesis, 
+
+  
+\begin{align}
+H_0: E[\hat\beta_1] = 0\\
+H_1: E[\hat\beta_1] \neq 0 
+\end{align}
+  
+
+  By the definition and by the assumption of the linear model from the above, $E[\hat\beta_1|X] = \beta_1$. By the law of total expectation, $E[E[\hat\beta_1|X]] = E[\hat\beta_1] = \beta_1$, which is the slope of the regression line. So, we can redefine the hypothesis as, 
+
+  
+\begin{align}
+H_0: \beta_1 = 0\\
+H_1: \beta_1 \neq 0 
+\end{align}
+  
+
+  What this test implies is the existence of the linear relationship between the temperature and the incident rate. Also, we will conduct the hypothesis test with the 95% confidence level. 
+
+  Since the variance of random errors are unknown as in the section for confidence interval, the test statistics if defined as,
+
+  
+\begin{align}
+T &= \frac{\hat\beta_1-\beta_1^0}{se(\hat\beta_1)}\\
+&=\frac{\hat\beta_1}{se(\hat\beta_1)} \sim t_{n-2}
+\end{align}
+  
+
+  Then, we can also define the rejection region as $RR: \{T\leq -t_{n-2,0.025}\} \text{ or } \{T\geq t_{n-2,0.025}\}$
+
+## Bayesian Credible Interval
+
+  Assume we are interested in finding a 95% credible interval of the parameter $\beta_1$. Suppose our data is a random sample of Normal random variables with mean, $\beta_0+\beta_1x_i$ and fixed variance, $\sigma^2$, i.e., $Y_i\sim N(\beta_0+\beta_1X_i, \sigma^2)$. Assume that the prior distribution of $Y_i$ is proportional to $1/\sigma^2$ and the prior distribution of $\beta_1$ is also proportional to $1/\sigma^2$. The posterior distribution of $\beta_1$ is T distribution with $n-2$ degree of freedom centered at $\hat\beta_1$ and has the scale parameter, $se(\hat\beta_1)^2$, where the $\hat\beta_1$ is the OLS estimator for $\beta_1$.  
+
+  All derivations regarding the posterior distribution can be found in Section 3 of the Appendix.
+
+# Results 
+
+  Overall, through the analysis, we have captured a linear relationship between the incident rate of the COVID-19 and the temperature. The linear relationship is statistically significant. According to the linear model used for the entire paper, we see that the incident rate drops by 9.085% for one degree celsius increase in temperature. 
+
+## Goodness of Fit Test 
+
+```{r, include = FALSE}
+model <- lm(incident_rate ~ temperature, data=covid)
+ks.test(resid(model), y= pnorm)
+bptest(model)
+```
+
+  We fit a tentative simple linear model (level-level model). The equation of the line of best fit of the model is $y=3.144-0.1203x$. Goodness of fit tests, the Kolmogorov-Smirnov test and the Breusch-Pagan test, are each conducted to check if the linearity assumption and the constant variance assumption of residuals is satisfied. 
+  
+  The KS test has the $\text{p-value} < 2.2e^{-16}$, thus we reject the null hypothesis and conclude that the residuals of the model are not normally distributed. As well, the result of the BP test shows the $\text{p-value} < 9.291e^{-8}$. Thus, we reject the null hypothesis, again, and conclude that the residuals have non-constant variance. These goodness of fit test results show that the model assumptions are not satisfied. Therefore, we will now fit another model by transforming the data. We will try to log scale the incident rate and fit the model.
+  
+```{r, include = FALSE}
+new <- lm(log(incident_rate)~temperature, data = covid)
+ks.test(resid(new), y= pnorm)
+bptest(new)
+```
+
+  The new model has a log-scaled dependent variable, $log(y)$, i.e., log scaled incident rates. The model is a log-level model and the equation of the line of best fit of the model is $y=0.4783-0.09085x$. We, again, conduct the KS test and the BP test. 
+  
+  With the log scaled data, the KS test reports a $\text{p-value} < 3.169e^{-8}$ and the BP test reports a $\text{p-value} = 0.2035$. As a result, we still reject the null hypothesis of the KS test and conclude that the residuals are not normally distributed. On the other hand, we fail to reject the null hypothesis for the BP test since the p-value is greater than 0.05, and so we can conclude that the residuals have constant variance. According to the book, A Modern Approach to Regression with R (Sheather, 2009), the normality assumption is rather a weak assumption and for large sample sizes, the assumption is less important due to the central limit theorem. Therefore, we will continue with the new model. 
+  
+## Linear regression.
+
+```{r, include = FALSE}
+new <- lm(log(incident_rate) ~ temperature, data = covid)
+```
+
+```{r, include =TRUE, echo=FALSE}
+lmplot<-ggplot(covid, aes(x=temperature, y=log(incident_rate)))+
+  geom_point(colour = "skyblue")+stat_smooth(method=lm, color = "orange", level=FALSE) +
+  geom_text(x=-17.3, y=1.3, label="y = 0.4783 - 0.09085 x", colour="orange") +
+  xlab("temperature (degree celsius)") +
+  ylab("incident rate (%)") +
+  ggtitle("Fig 3. Linear model: Incident Rate vs. weather")
+
+plot(lmplot)
+```
+
+  The simple linear model is illustrated by the scatter plot and the regression line above. The orange line is the line of best fit computed by the OLS method, using the `lm()` function. 
+  
+  According to the model summary, the equation of the line of best fit is, $$log(y) = 0.4783 - 0.09085x$$. The intercept coefficient estimate is 0.4783 and the slope coefficient estimate is -0.09085. These numbers, respectively, imply that when the monthly average temperature is at 0 degrees celsius, the log of the monthly incident rate is 3.144% and for one degree celsius increase in the monthly average temperature, the monthly incident rate decreases by 9.085%. 
+
+
+## Maximum Likelihood Estimator
+
+```{r, include = FALSE}
+x <- covid$temperature
+y <- log(covid$incident_rate)
+b1 <- sum((x-mean(x))*(y-mean(y)))/sum((x-mean(x))^2)
+round(b1,5)
+b1
+```
+
+  We computed the maximum likelihood estimator of the slope of the regression line, $\hat\beta_{1}$. The maximum likelihood estimate of the slope coefficient is $-0.09085$ and it is identical to the OLS estimate of the slope coefficient. 
+
+## Confidence Interval
+
+```{r, include = FALSE}
+b1 <- -0.09085
+t <- round(qt(p=.05/2, df=442, lower.tail=FALSE),4)
+se <- 0.00808
+l <- round(b1-t*se,5)
+u <- round(b1+t*se,5)
+ci <- tibble("lower bound" = l, "upper bound" = u)
+```
+
+
+  The upper bound and the lower bound of the 95% confidence interval for $\beta_1$, the slope of the regression line are -0.107 and -0.075 respectively. The 95% confidence interval implies that if thousands of samples of 444 items are drawn from a population using simple random sampling and a confidence interval is calculated for each sample, the proportion of those intervals that will include the true population slope is 0.95. 
+
+## Hypothesis Test
+
+```{r, include = FALSE}
+b1 <- -0.09085
+se <- 0.00808
+tl <- -round(qt(p=.05/2, df=442, lower.tail=FALSE),5)
+tu <- round(qt(p=.05/2, df=442, lower.tail=FALSE),5)
+T <- round(b1/se,5)
+test <- tibble("left tail" = tl,"test statistic" = T ,"right tail"=tu)
+```
+
+  The test statistic is computed to be $-11.24381$ and the reject region is $RR:\{T\leq-1.96535\} \text{ or } \{T\geq1.96535\}$. Since our test statistic is smaller than $-1.96535$, we reject the null hypothesis and conclude that the slope coefficient is significantly different from 0, i.e., there exists a clear statistical evidence of linear relationship between the incident rate and the temperature. 
+
+## Bayesian Credible Interval
+
+```{r, include = FALSE}
+output = summary(new)$coef[, 1:2]
+out = cbind(output, confint(new))
+colnames(out) = c("posterior mean", "posterior std", "2.5", "97.5")
+round(out, 4)[2,1:4]
+```
+
+  These intervals are actually identical to the OLS confidence intervals. The key difference, however, is the interpretation. For example, for the credible interval, we can say that there is a 95% chance that the incident rate will decrease by 10.67% up to 7.5% for every additional one degree celsius increase in the temperature.
+
+# Conclusions
+
+  In this paper, we examined the weather effect on the incident rate of the COVID-19 over the 37 OECD countries. We adopted the method of simple linear regression analysis to capture and analyze the relationship between the incident rate and the temperature.
+  
+  Before formally analyzing the data with statistical tools, such as fitting a linear model, conducting hypothesis tests and goodness of fit tests, we looks at the data by checking the numerical summary and visualizing the data. This step alarmed some problems of the data and so we conducted goodness of fit test to verify assumptions of a linear model before selecting a model. As a result, the tests proved that the base model (level-level model) is not appropriate, Thus, we log transformed the dependent variable, the incident rates, and then fit the new, log-level model. The model satisfied the assumptions, so we continues the analysis with the model. 
+  
+  The most important information we obtained from the linear model is the slope estimator. The slope estimator estimates the slope of the population regression line. The estimate is computed by the OLS method and the MLE approach. The results were both -0.09085, as expected. The hypothesis test of the mean of the slope estimator was conducted because the mean of the slope estimator is the slope coefficient by the definition. The hypothesis test, therefore, was used to test the existence of the linear relationship between the incident rate and the temperature and by the test results, we concluded that there is a statistically significant linear relationship. The value of the slope estimator shows that the incident rate decreases by 9.085% if the temperature increases by 1 degree celsius. 
+  
+  The 95% confidence interval that is computed by the OLS method and by the t-value and the 95% credible interval computed by the Bayesian approach resulted in the same value, (-0.10673,-0.07497). 
+
+## Weaknesses
+
+  The most obvious weakness is that the model, in fact, do not meet the assumption that the random errors are normally distributed. The violation of this assumption is considered insignificant and we kept the model because the random errors have a constant variance. Although the normality assumption is not a very powerful assumption and often overlooked because of the CLT. It is better if the assumption was satisfied. 
+    
+  Another weakness is that we only consider the temperature as a main factor of weather. Actually, there are other components of weather, such as wind, humidity, temperature, etc. Simply treating temperature as weather may incur bias and oversimplify the model.
+
+## Next Steps
+
+  As mentioned previously, since the variable used to denote weather is confined. It is recommended to include more variables indicating weather condition, such as humidity, wind, precipitation, etc. Adding more variables does not always results in a better model. However, we can find a better model by comparing how well candidate models with different weather variables explain the data. 
+  
+
+## Discussion
+
+  The weather effect on the incident rate of the COVID-19 is analyzed by a simple linear model. Firstly, the level-level model is used to test the goodness of fit of the residual normality and the constant variance. The level-level model is rejected. Accordingly, the log-level model is accepted by the test and used throughout the paper. The linear model reports that for one degree celsius increase in the temperature, the incident rate of the COVID-19 decreases by 9.085%, which is computed by the OLS method. The slope is statistically proven to be significant. The MLE approach is also used to estimate the slope and it is the same as the OLS estimator. The confidence interval and the credible intervals are estimated as (-0.10673,-0.07497). The negative relationship shows that the COVID-19 is less infectious when the temperature is low and therefore shows a similar infection pattern as the common cold and flu. The infection pattern is important because the pattern can be taken into account when governments implement preventive measures. Until now, the COVID-19 preventive measures are implemented as a response to spikes and drops in the number of confirmed cases, rather to prevent in advance. It is not because the governments are not smart but because the COVID-19 a new virus, so they lack the information. Therefore, this result can be used to implement more stringent preventive measures in the so called "flu season".  
+
+
+# Bibliography
+
+1. Grolemund, G. (2014, July 16) *Introduction to R Markdown*. RStudio. [https://rmarkdown.rstudio.com/articles_intro.html](https://rmarkdown.rstudio.com/articles_intro.html). (Last Accessed: January 15, 2021) 
+
+2. Dekking, F. M., et al. (2005) *A Modern Introduction to Probability and Statistics: Understanding why and how.* Springer Science & Business Media.
+
+3.  Allaire, J.J., et. el. *References: Introduction to R Markdown*. RStudio. [https://rmarkdown.rstudio.com/docs/](https://rmarkdown.rstudio.com/docs/). (Last Accessed: January 15, 2021) 
+
+4. *Similarities and Differences between Flu and COVID-19.* (2021a, January 27). Centers for Disease Control and Prevention. https://www.cdc.gov/flu/symptoms/flu-vs-covid19.html
+
+5. Corman, V. M., Muth, D., Niemeyer, D., & Drosten, C. (2018). *Hosts and Sources of Endemic Human Coronaviruses. Advances in Virus Research*, 163–188. https://doi.org/10.1016/bs.aivir.2018.01.001
+
+6. Sheather, S. (2009). *A Modern Approach to Regression with R (Springer Texts in Statistics)* (2009th ed.). Springer.
+
+7. *COVID-19 Portal*. (2021, April 25). Johns Hopkins Coronavirus Resource Center. https://coronavirus.jhu.edu/
+
+8. *World Bank Climate Change Knowledge Portal*. (n.d.). For Global Climate Data and Information! https://climateknowledgeportal.worldbank.org/watershed/154/climate-data-historical
+
+9. *Demography - Population - OECD Data.* (n.d.). The OECD. https://data.oecd.org/pop/population.htm
+
+\newpage
+
+# Appendix
+
+## Section 1 
+
+  Given any data set $(x_1, y_1),(x_2, y_2), ..., (x_n, y_n)$, probability density of the simple linear model is, 
+$$\prod_{i=1}^{n}p(y_i|x_i;\beta_0,\beta_1,\sigma^2) = \prod_{i=1}^{n} \frac{1}{\sqrt{2\pi\sigma^2}}e^{-(\frac{(y-(\beta_0+\beta_1x_i))^2}{2\sigma^2})}$$
+ 
+  Since the parameters, $\beta_0, \beta_1, \sigma^2$ are unknown, we replace the unknown parameters by $(b_0,b_1,s^2)$. Thus,
+  
+  
+\begin{align}
+\prod_{i=1}^{n}p(y_i|x_i;b_0,b_1,s^2) &= \prod_{i=1}^{n} \frac{1}{\sqrt{2\pi s^2}}e^{-(\frac{(y-(b_0+b_1x_i))^2}{2s^2})}\\
+&= (\frac{1}{\sqrt{2\pi s^2}})^ne^{-\frac{1}{2s^2}\sum_{i=1}^{n}(y_i-b_0-b_1x_i)^2}\\
+\end{align}
+  
+  This is the likelihood, a function of the parameter values. It’s just as informative, and much more convenient, to work with the log-likelihood,
+
+  
+\begin{align}
+L(b_0,b_1,s^2) &= \log \prod_{i=1}^{n}p(y_i|x_i;b_0,b_1,s^2) \\
+&= \log(\frac{1}{\sqrt{2\pi s^2}})^ne^{-\frac{1}{2s^2}\sum_{i=1}^{n}(y_i-b_0-b_1x_i)^2}\\
+&= -\frac{n}{2}\log 2\pi - n \log s- \frac{1}{2s^2}\sum^{n}_{i=1}(y_i-(b_0+b_1x_i))^2\\
+\end{align}
+  
+ Given the log-likelihood function, the value of $b_1$ that maximizes the function is computed by taking a partial derivative of the function w.r.t. $b_1$ and setting it equal to 0. However, the $b_1$ is a function of $b_0$, so we will find the value of $b_0$ that maximizes the log-likelihood function first by the same partial derivative method. 
+ 
+  
+\begin{align}
+\frac{d}{db_0}L(b_0,b_1,s^2) &= -\frac{1}{2s^2}\sum^{n}_{i=1}-2(y_i-(b_0+b_1x_i))\\
+&=\frac{1}{s^2}\sum^{n}_{i=1}(y_i-b_0-b_1x_i) \\
+&= 0 \\
+&\Rightarrow \sum^{n}_{i=1}(y_i-b_0-b_1x_i) = 0\\
+&\Rightarrow \sum^{n}_{i=1}y_i-nb_0-b_1\sum^{n}_{i=1}x_i = 0\\
+&\Rightarrow b_0 = \bar y -b_1 \bar x
+\end{align}
+  
+
+  
+\begin{align}
+\frac{d}{db_1}L(b_0,b_1,s^2) &= -\frac{1}{2s^2}\sum^{n}_{i=1}-2x_i(y_i-(b_0+b_1x_i))\\
+&=\frac{1}{s^2}\sum^{n}_{i=1}x_i(y_i-b_0-b_1x_i) \\
+&= 0 \\
+&\Rightarrow \sum^{n}_{i=1}x_i(y_i-b_0-b_1x_i) = 0\\
+&\Rightarrow \sum^{n}_{i=1}x_iy_i-b_0\sum^{n}_{i=1}x_i-b_1\sum^{n}_{i=1}x_i^2 = 0\\
+&\Rightarrow \sum^{n}_{i=1}x_iy_i-(\bar y -b_1 \bar x)\sum^{n}_{i=1}x_i-b_1\sum^{n}_{i=1}x_i^2 = 0\\
+&\Rightarrow \sum^{n}_{i=1}x_iy_i-\bar y\sum^{n}_{i=1}x_i +b_1\bar x\sum^{n}_{i=1}x_i-b_1\sum^{n}_{i=1}x_i^2 =0\\
+&\Rightarrow \sum^{n}_{i=1}x_iy_i-\bar y\sum^{n}_{i=1}x_i-b_1(\sum^{n}_{i=1}x_i^2-\bar x \sum^{n}_{i=1}x_i) = 0\\
+&\Rightarrow b_1 = \frac{\sum^{n}_{i=1}x_iy_i-\bar y\sum^{n}_{i=1}x_i}{\sum^{n}_{i=1}x_i^2-\bar x \sum^{n}_{i=1}x_i} \\
+&\Rightarrow b_1 = \frac{\sum_{i=1}^{n}(x_i-\bar x)(y_i - \bar y)}{\sum_{i=1}^{n}(x_i-\bar x)^2}
+\end{align}
+  
+  The maximum likelihood estimator of $\beta_1$ is $\frac{\sum_{i=1}^{n}(x_i-\bar x)(y_i - \bar y)}{\sum_{i=1}^{n}(x_i-\bar x)^2}$.
+
+## Section 2 
+
+  
+\begin{align}
+\hat\beta_1 &= \frac{\sum_{i=1}^{n}(x_i-\bar x)(y_i - \bar y)}{\sum_{i=1}^{n}(x_i-\bar x)^2}\\ &= \frac{SXY}{SXX}\\
+\text{Since } \sum_{i=1}^{n}(x_i-\bar x) &=0, \text{ we can find,}\\ 
+\sum_{i=1}^{n}(x_i-\bar x)(y_i - \bar y) &= \sum_{i=1}^{n}(x_i-\bar x)y_i - \bar y \sum_{i=1}^{n}(x_i-\bar x)\\ 
+&= \sum_{i=1}^{n}(x_i-\bar x)y_i\\
+c_i = \frac{x_i-\bar x}{SXX} &\Rightarrow \hat\beta_1 = \sum_{i=1}^{n}c_iy_i\\ 
+\end{align}
+  
+  Using the alternative equation of $\hat\beta_1$ just defined, we can find the distribution of $\hat\beta_1$. 
+  
+  
+\begin{align}
+E(\hat\beta_1|X) &= E[\sum_{i=1}^{n}c_iy_i|X=x_i] \\
+&=\sum_{i=1}^{n}c_iE[y_i|X=x_i] \\
+&=\sum_{i=1}^{n}c_i(\beta_0+\beta_1x_i) \\
+&=\beta_0\sum_{i=1}^{n}c_i+\beta_1\sum_{i=1}^{n}c_ix_i\\
+&= \beta_0\sum_{i=1}^{n}(\frac{x_i-\bar x}{SXX})+\beta_1\sum_{i=1}^{n}(\frac{x_i-\bar x}{SXX})x_i\\
+&= \beta_1
+\end{align}
+  
+  
+\begin{align}
+Var(\hat\beta_1|X) &= Var[\sum_{i=1}^{n}c_iy_i|X=x_i] \\
+&=\sum_{i=1}^{n}c_i^2Var[y_i|X=x_i] \\
+&=\sigma^2\sum_{i=1}^{n}c_i^2 \\
+&= \sigma^2\sum_{i=1}^{n}(\frac{x_i-\bar x}{SXX})^2\\
+&= \frac{\sigma^2}{SXX}
+\end{align}
+  
+By the assumption, the random errors of the linear model are normally distributed. Also, $y_i = \beta_0+\beta_1x_i+\epsilon_i$, $Y|X$ is normally distributed. Since $\hat\beta_1|X$ is a linear combination of $y_i$'s, $\hat\beta_1 \sim N(\beta_1, \frac{\sigma^2}{SXX})$
+
+## Section 3
+
+By the assumption that the errors, $\epsilon_i\sim N(0, \sigma^2)$, we can state that $Y_i|x_i,\beta_0,\beta_1,\sigma^2 \sim N(\beta_0+\beta_1x_i, \sigma^2), \forall i = 1, 2, ..., n$. So, the likelihood of $Y_i|x_i,\beta_0,\beta_1,\sigma^2$ is,
+$$ p(y_i|x_i,\beta_0,\beta_1,\sigma^2) = \frac{1}{\sqrt{2\pi\sigma^2}}e^{-(\frac{(y-(\beta_0+\beta_1x_i))^2}{2\sigma^2})}$$
+and the likelihood of $Y_1, Y_2, ..., Y_n$ is the product of each likelihood $p(y_i|x_i,\beta_0,\beta_1,\sigma^2)$, which is, 
+
+$$\prod_{i=1}^{n}p(y_i|x_i;\beta_0,\beta_1,\sigma^2) = \prod_{i=1}^{n} \frac{1}{\sqrt{2\pi\sigma^2}}e^{-(\frac{(y-(\beta_0+\beta_1x_i))^2}{2\sigma^2})}$$
+
+By the assumption, we defined the prior density $p(\beta_0, \beta_1, \sigma^2) \propto \frac{1}{\sigma^2}$. Then we apply the Bayes’ rule to derive the joint posterior distribution after observing data $y_1, y_2, ..., y_n$
+
+
+\begin{align}
+p(\beta_0,\beta_1,\sigma^2|y_1, y_2, ..., y_n) &\propto (\prod_{i=1}^{n} \frac{1}{\sqrt{2\pi \sigma^2}}e^{-(\frac{(y-(\beta_0+\beta_1x_i))^2}{2\sigma^2})})\times \frac{1}{\sigma^2}\\
+&\propto (\frac{1}{\sqrt{2\pi \sigma^2}})^ne^{-\frac{1}{2\sigma^2}\sum_{i=1}^{n}(y_i-\beta_0-\beta_1x_i)^2}\times \frac{1}{\sigma^2}\\
+&\propto \frac{1}{\sigma^{(n+2)}}e^{-\frac{1}{2\sigma^2}\sum_{i=1}^{n}(y_i-\beta_0-\beta_1x_i)^2}
+\end{align}
+
+
+Integrating out $\beta_0, \sigma^2$ from the joint posterior distribution, we get the marginal posterior distribution of $\beta_1$, 
+
+\begin{align}
+p(\beta_1|y_1, y_2, ..., y_n) &= \int_{0}^{\infty}(\int_{-\infty}^{\infty}p(\beta_0,\beta_1,\sigma^2|y_1, y_2, ..., y_n)d\beta_0)d\sigma^2 \\
+\beta_1|y_1, y_2, ..., y_n& \sim t(n-2, \hat\beta_1, se(\hat\beta_1)^2)
+\end{align}
+
+The second line means that marginal posterior distribution of $\beta_1$ follows a T-distribution with $(n-2)$ degree of freedom, centred at the OLS estimator of $\beta_1$ and scaled by the standard error squared.  
+
+Therefore, the credible interval of $\beta_1$ is $\beta_1 \in (\hat\beta_1-t_{n-2,0.025}\times se(\hat\beta_1), \space \hat\beta_1+t_{n-2,0.025}\times se(\hat\beta_1))$. 
