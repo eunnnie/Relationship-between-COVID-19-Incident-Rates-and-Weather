@@ -47,16 +47,15 @@ Incident Rate = β₀ + β₁ × Temperature + ε
 
 ---
 
-## 🧠 Interpretation | 해석 (강조)
+## 🧠 Interpretation | 해석 
 
 - 🧊 **Lower temperatures weaken the immune system and support virus survival**, leading to higher infection rates  
 - 🧊 **기온이 낮을수록 면역력이 약화되고 바이러스 생존률이 높아져 감염률이 증가**  
 - 📌 Temperature is a **natural, non-social factor** that sets a **baseline infection risk**  
 - 📌 기온은 사회적 조치와 무관한 **자연적 요인**으로 감염 위험의 구조적 기준선을 형성함
 
----
 
-## 🧾 Conclusion | 결론 (강조)
+## 🧾 Conclusion | 결론 
 
 - ✅ Temperature has a **statistically significant negative effect** on COVID-19 incident rates  
 - ✅ 기온은 COVID-19 발생률에 **통계적으로 유의한 음의 영향을 미침**
